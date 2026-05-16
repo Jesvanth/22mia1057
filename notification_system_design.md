@@ -214,3 +214,61 @@ Combine **Pagination + Redis Caching + WebSockets** for best performance:
 - WebSocket pushes new notifications instantly
 - Redis serves cached list on panel open
 - Pagination loads older notifications on scroll
+
+# Stage 5
+
+## Bulk Notification System Redesign
+
+### Original Pseudocode Problem
+function notify_all(student_ids: array, message: string):
+for student_id in student_ids:
+send_email(student_id, message)   # calls Email API
+save_to_db(student_id, message)   # DB insert
+push_to_app(student_id, message)  # real-time push
+
+### Shortcomings
+- **Sequential processing** — 50,000 students processed one by one, extremely slow
+- **No error handling** — if `send_email` fails at student 200, remaining 49,800 are skipped
+- **Tightly coupled** — email, DB save and push happen together; one failure blocks others
+- **No retry mechanism** — failed emails are lost forever
+- **DB overload** — 50,000 individual INSERT queries instead of batch insert
+
+### Should DB save and email happen together?
+**No!** They should be decoupled:
+- DB save should happen first and always succeed
+- Email sending can fail and retry independently
+- Mixing them means a failed email can prevent DB save
+
+### Revised Pseudocode
+function notify_all(student_ids: array, message: string):
+Step 1: Batch save all to DB at once (fast, reliable)
+batch_save_to_db(student_ids, message)
+Step 2: Push real-time notifications via WebSocket
+for student_id in student_ids:
+push_to_app(student_id, message)
+Step 3: Add emails to a queue (async, with retry)
+for student_id in student_ids:
+email_queue.add({
+student_id: student_id,
+message: message,
+retries: 0,
+max_retries: 3
+})
+Email worker processes queue independently
+function email_worker():
+while queue not empty:
+job = email_queue.get()
+try:
+send_email(job.student_id, job.message)
+catch error:
+if job.retries < job.max_retries:
+job.retries += 1
+email_queue.add(job)  # retry
+else:
+log_failed_email(job)  # log and move on
+
+### Key Improvements
+- Batch DB insert instead of 50,000 individual inserts
+- Email queue with retry mechanism — failed emails are retried 3 times
+- DB save and email are fully decoupled
+- Real-time push is non-blocking
