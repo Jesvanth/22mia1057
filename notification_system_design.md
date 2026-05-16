@@ -290,3 +290,20 @@ Since score combines weight and timestamp, any new notification automatically ge
 ### API
 GET /priority-inbox?n=10
 Returns top N notifications sorted by priority and recency.
+
+# Stage 7
+
+## React Frontend
+
+### Features
+- Two tabs: All Notifications and Priority Inbox
+- Filter by type: All, Placement, Result, Event
+- NEW badge on unseen notifications
+- Unread count on bell icon in header
+- Priority Inbox shows top N notifications sorted by priority and recency
+- Auto-refreshes every 30 seconds
+
+### Tech Stack
+- React + Vite
+- Material UI (MUI) for components
+- Axios for API calls
