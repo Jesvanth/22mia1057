@@ -272,3 +272,21 @@ log_failed_email(job)  # log and move on
 - Email queue with retry mechanism — failed emails are retried 3 times
 - DB save and email are fully decoupled
 - Real-time push is non-blocking
+
+# Stage 6
+
+## Priority Inbox Implementation
+
+### Approach
+Each notification is scored using:
+- **Weight:** Placement = 3, Result = 2, Event = 1
+- **Score formula:** `weight * 1000000 + timestamp_seconds`
+
+This ensures Placement always ranks above Result and Event, with recency as tiebreaker within same type.
+
+### How new notifications are handled
+Since score combines weight and timestamp, any new notification automatically gets the correct position when list is re-fetched. No manual re-sorting needed.
+
+### API
+GET /priority-inbox?n=10
+Returns top N notifications sorted by priority and recency.
