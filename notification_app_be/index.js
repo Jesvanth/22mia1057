@@ -1,41 +1,47 @@
 const express = require('express');
 const axios = require('axios');
-const { Log } = require('../logging_middleware/index');
+const cors = require('cors');
+const { Log, getToken, refreshToken } = require('../logging_middleware/index');
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
-const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJNYXBDbGFpbXMiOnsiYXVkIjoiaHR0cDovLzIwLjI0NC41Ni4xNDQvZXZhbHVhdGlvbi1zZXJ2aWNlIiwiZW1haWwiOiJqZXN2YW50aC5zMjAyMkB2aXRzdHVkZW50LmFjLmluIiwiZXhwIjoxNzc4OTI5NTk0LCJpYXQiOjE3Nzg5Mjg2OTQsImlzcyI6IkFmZm9yZCBNZWRpY2FsIFRlY2hub2xvZ2llcyBQcml2YXRlIExpbWl0ZWQiLCJqdGkiOiI1OGFiNTM5MC1hMjJmLTRjODMtYTRkNi0xNzA0MzgxMDdlODAiLCJsb2NhbGUiOiJlbi1JTiIsIm5hbWUiOiJqZXN2YW50aCBzIiwic3ViIjoiZmU3ODVkZDUtYmRlNS00NzQyLWE3MWEtZTAwN2VjNWUxNjI3In0sImVtYWlsIjoiamVzdmFudGguczIwMjJAdml0c3R1ZGVudC5hYy5pbiIsIm5hbWUiOiJqZXN2YW50aCBzIiwicm9sbE5vIjoiMjJtaWExMDU3IiwiYWNjZXNzQ29kZSI6IlNmRnVXZyIsImNsaWVudElEIjoiZmU3ODVkZDUtYmRlNS00NzQyLWE3MWEtZTAwN2VjNWUxNjI3IiwiY2xpZW50U2VjcmV0IjoiYmtGc2FtY0NLRHdHSllOUCJ9.Bq4edGXtQbybjKGUqJx6VGa-rd_cVWtNavWQxWroLCg";
-
 const WEIGHT = { Placement: 3, Result: 2, Event: 1 };
+
+async function getAuthToken() {
+  let token = getToken();
+  if (!token) {
+    await refreshToken();
+    token = getToken();
+  }
+  return token;
+}
 
 // Get top N priority notifications
 app.get('/priority-inbox', async (req, res) => {
   try {
     const n = parseInt(req.query.n) || 10;
+    const token = await getAuthToken();
 
     await Log("backend", "info", "route", `Priority inbox requested for top ${n}`);
 
     const response = await axios.get(
       'http://4.224.186.213/evaluation-service/notifications',
-      { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }
+      { headers: { Authorization: `Bearer ${token}` } }
     );
 
     const notifications = response.data.notifications;
 
-    // Score = weight * 1000000 + timestamp (newer = higher score)
-    const scored = notifications.map(n => ({
-      ...n,
-      score: WEIGHT[n.Type] * 1000000 + new Date(n.Timestamp).getTime() / 1000000
+    const scored = notifications.map(notif => ({
+      ...notif,
+      score: WEIGHT[notif.Type] * 1000000 + new Date(notif.Timestamp).getTime() / 1000000
     }));
 
-    // Sort by score descending
     scored.sort((a, b) => b.score - a.score);
-
     const topN = scored.slice(0, n);
 
     await Log("backend", "info", "route", `Returning top ${n} priority notifications`);
-
     res.json({ total: notifications.length, showing: n, notifications: topN });
   } catch (err) {
     await Log("backend", "error", "route", `Priority inbox error: ${err.message}`);
@@ -46,11 +52,12 @@ app.get('/priority-inbox', async (req, res) => {
 // Get all notifications
 app.get('/notifications', async (req, res) => {
   try {
+    const token = await getAuthToken();
     await Log("backend", "info", "route", "Fetching all notifications");
 
     const response = await axios.get(
       'http://4.224.186.213/evaluation-service/notifications',
-      { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }
+      { headers: { Authorization: `Bearer ${token}` } }
     );
 
     res.json(response.data);

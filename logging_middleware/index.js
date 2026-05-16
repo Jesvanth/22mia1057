@@ -1,29 +1,46 @@
 const axios = require('axios');
 
-const AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJNYXBDbGFpbXMiOnsiYXVkIjoiaHR0cDovLzIwLjI0NC41Ni4xNDQvZXZhbHVhdGlvbi1zZXJ2aWNlIiwiZW1haWwiOiJqZXN2YW50aC5zMjAyMkB2aXRzdHVkZW50LmFjLmluIiwiZXhwIjoxNzc4OTI5NTk0LCJpYXQiOjE3Nzg5Mjg2OTQsImlzcyI6IkFmZm9yZCBNZWRpY2FsIFRlY2hub2xvZ2llcyBQcml2YXRlIExpbWl0ZWQiLCJqdGkiOiI1OGFiNTM5MC1hMjJmLTRjODMtYTRkNi0xNzA0MzgxMDdlODAiLCJsb2NhbGUiOiJlbi1JTiIsIm5hbWUiOiJqZXN2YW50aCBzIiwic3ViIjoiZmU3ODVkZDUtYmRlNS00NzQyLWE3MWEtZTAwN2VjNWUxNjI3In0sImVtYWlsIjoiamVzdmFudGguczIwMjJAdml0c3R1ZGVudC5hYy5pbiIsIm5hbWUiOiJqZXN2YW50aCBzIiwicm9sbE5vIjoiMjJtaWExMDU3IiwiYWNjZXNzQ29kZSI6IlNmRnVXZyIsImNsaWVudElEIjoiZmU3ODVkZDUtYmRlNS00NzQyLWE3MWEtZTAwN2VjNWUxNjI3IiwiY2xpZW50U2VjcmV0IjoiYmtGc2FtY0NLRHdHSllOUCJ9.Bq4edGXtQbybjKGUqJx6VGa-rd_cVWtNavWQxWroLCg";
+const CONFIG = {
+  email: "jesvanth.s2022@vitstudent.ac.in",
+  name: "jesvanth s",
+  rollNo: "22mia1057",
+  accessCode: "SfFuWg",
+  clientID: "fe785dd5-bde5-4742-a71a-e007ec5e1627",
+  clientSecret: "bkFsamcCKDwGJYNP"
+};
+
+let AUTH_TOKEN = "";
+
+async function refreshToken() {
+  try {
+    const res = await axios.post(
+      'http://4.224.186.213/evaluation-service/auth',
+      CONFIG
+    );
+    AUTH_TOKEN = res.data.access_token;
+    console.log('Token refreshed!');
+  } catch (err) {
+    console.error('Token refresh failed:', err.message);
+  }
+}
 
 async function Log(stack, level, package_name, message) {
+  if (!AUTH_TOKEN) await refreshToken();
   try {
     const response = await axios.post(
       'http://4.224.186.213/evaluation-service/logs',
-      {
-        stack: stack,
-        level: level,
-        package: package_name,
-        message: message
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${AUTH_TOKEN}`,
-          'Content-Type': 'application/json'
-        }
-      }
+      { stack, level, package: package_name, message },
+      { headers: { Authorization: `Bearer ${AUTH_TOKEN}`, 'Content-Type': 'application/json' } }
     );
     console.log('Log sent:', response.data);
     return response.data;
   } catch (err) {
+    if (err.response?.status === 401) {
+      await refreshToken();
+      return Log(stack, level, package_name, message);
+    }
     console.error('Log failed:', err.message);
   }
 }
 
-module.exports = { Log };
+module.exports = { Log, getToken: () => AUTH_TOKEN, refreshToken };
