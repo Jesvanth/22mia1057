@@ -128,3 +128,45 @@ SELECT * FROM notifications
 WHERE student_id = '<uuid>' AND type = 'Placement'
 ORDER BY created_at DESC;
 ```
+# Stage 3
+
+## Query Analysis and Optimization
+
+### Original Query
+```sql
+SELECT * FROM notifications
+WHERE studentID = 1042 AND isRead = false
+ORDER BY createdAt ASC;
+```
+
+### Is this query accurate?
+Yes, the query is logically correct — it fetches all unread notifications for a specific student ordered by time.
+
+### Why is it slow?
+With 50,000 students and 5,000,000 notifications:
+- No indexes on `studentID`, `isRead`, or `createdAt`
+- Full table scan on 5M rows every time
+- `ORDER BY createdAt` without index causes expensive sort
+
+### Fix — Add Indexes
+```sql
+CREATE INDEX idx_student_id ON notifications(studentID);
+CREATE INDEX idx_is_read ON notifications(isRead);
+CREATE INDEX idx_created_at ON notifications(createdAt ASC);
+
+-- Best: Composite index for this exact query
+CREATE INDEX idx_student_unread ON notifications(studentID, isRead, createdAt ASC);
+```
+
+### Should we add indexes on EVERY column?
+**No!** Adding indexes on every column is bad advice because:
+- Indexes slow down INSERT, UPDATE, DELETE operations
+- Each index takes extra disk space
+- Only index columns used in WHERE, ORDER BY, or JOIN clauses
+
+### Find students with Placement notification in last 7 days
+```sql
+SELECT DISTINCT studentID FROM notifications
+WHERE notificationType = 'Placement'
+AND createdAt >= NOW() - INTERVAL '7 days';
+```
