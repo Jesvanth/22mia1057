@@ -3,7 +3,7 @@
 ## REST API Design for Campus Notification Platform
 
 ### Base URL
-http://localhost:5000/api
+http://localhost:3000/api
 
 ### Authentication
 All endpoints require Bearer token in header:
