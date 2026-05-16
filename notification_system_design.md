@@ -170,3 +170,47 @@ SELECT DISTINCT studentID FROM notifications
 WHERE notificationType = 'Placement'
 AND createdAt >= NOW() - INTERVAL '7 days';
 ```
+
+# Stage 4
+
+## Performance Optimization for Notification Fetching
+
+### Problem
+Fetching all notifications on every page load is overwhelming the DB with 50,000 students making requests simultaneously.
+
+### Solutions
+
+#### 1. Pagination (Must Have)
+Instead of fetching all notifications at once, fetch in pages:
+```sql
+SELECT * FROM notifications
+WHERE studentID = '<id>'
+ORDER BY createdAt DESC
+LIMIT 20 OFFSET 0;
+```
+**Tradeoff:** Reduces DB load massively. User must scroll/click for more.
+
+#### 2. Caching with Redis (Highly Recommended)
+- Cache each student's notifications for 60 seconds
+- On request: check Redis first, only hit DB on cache miss
+- On new notification: invalidate that student's cache
+
+**Tradeoff:** Faster reads, slight delay in showing newest notifications. Extra infrastructure needed.
+
+#### 3. Read/Unread Separation
+- Store unread count separately in Redis
+- Only fetch full list when user opens notification panel
+
+**Tradeoff:** Very fast badge counts, slightly complex logic.
+
+#### 4. WebSockets Instead of Page Load Fetching
+- Push new notifications to client in real-time via Socket.io
+- No need to fetch on every page load
+
+**Tradeoff:** Persistent connections use more server memory.
+
+### Recommended Strategy
+Combine **Pagination + Redis Caching + WebSockets** for best performance:
+- WebSocket pushes new notifications instantly
+- Redis serves cached list on panel open
+- Pagination loads older notifications on scroll
